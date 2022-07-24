@@ -1,3 +1,9 @@
+#![allow(dead_code)]
+
+mod consts;
+mod rayt;
+
+use rayt::float3::*;
 use std::{fs::File, io::prelude::*};
 
 struct Color([f64; 3]);
@@ -6,6 +12,8 @@ const IMAGE_WIDTH: u32 = 200;
 const IMAGE_HEIGHT: u32 = 100;
 
 fn main() {
+    Float3::one();
+
     let mut pixels: Vec<Color> = Vec::with_capacity((IMAGE_WIDTH * IMAGE_HEIGHT) as usize);
 
     for j in 0..IMAGE_HEIGHT {
