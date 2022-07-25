@@ -168,3 +168,64 @@ impl FromIterator<f64> for Float3 {
         ])
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::Float3;
+
+    #[test]
+    fn test_create() {
+        assert_eq!(Float3::new(0.0, 0.0, 0.0), Float3::zero());
+        assert_eq!(Float3::new(1.0, 1.0, 1.0), Float3::one());
+        assert_eq!(Float3::new(2.0, 2.0, 2.0), Float3::full(2.0));
+        assert_eq!(Float3::new(1.0, 0.0, 0.0), Float3::xaxis());
+        assert_eq!(Float3::new(0.0, 1.0, 0.0), Float3::yaxis());
+        assert_eq!(Float3::new(0.0, 0.0, 1.0), Float3::zaxis());
+    }
+
+    #[test]
+    fn test_sqrt() {
+        assert_eq!(
+            Float3::new(1.0, 2.0, 3.0),
+            Float3::new(1.0, 4.0, 9.0).sqrt()
+        );
+    }
+
+    #[test]
+    fn test_near_zero() {
+        assert!(!Float3::new(1.0, 2.0, 3.0).near_zero());
+        assert!(!Float3::new(1e-6, 1e-6, 01e-6).near_zero());
+        assert!(!Float3::new(1.0, 1e-7, 1.0).near_zero());
+
+        assert!(Float3::new(1e-7, 1e-7, 01e-7).near_zero());
+        assert!(Float3::zero().near_zero());
+    }
+
+    #[test]
+    fn test_saturate() {
+        assert_eq!(
+            Float3::new(0.5, 0.0, 1.0),
+            Float3::new(0.5, -1.0, 2.0).saturate()
+        );
+    }
+
+    #[test]
+    fn test_length() {
+        assert_eq!(3.0, Float3::new(1.0, 2.0, 2.0).length());
+    }
+
+    #[test]
+    fn test_dot() {
+        let a = Float3::new(3.0, 4.0, 1.0);
+        let b = Float3::new(3.0, 7.0, 5.0);
+        assert_eq!(42.0, a.dot(b));
+    }
+
+    #[test]
+    fn test_cross() {
+        let a = Float3::new(1.0, 2.0, 3.0);
+        let b = Float3::new(4.0, 5.0, 6.0);
+        let expect = Float3::new(-3.0, 6.0, -3.0);
+        assert_eq!(expect, a.cross(b));
+    }
+}
