@@ -3,16 +3,18 @@
 mod consts;
 mod rayt;
 
-use rayt::float3::*;
-use std::{fs::File, io::prelude::*};
+use std::{fs, fs::File, io::prelude::*, path::Path};
 
 struct Color([f64; 3]);
 
 const IMAGE_WIDTH: u32 = 200;
 const IMAGE_HEIGHT: u32 = 100;
 
+const OUTPUT_FILENAME: &str = "render.ppm";
+const BUCKUP_FILENAME: &str = "render_bak.ppm";
+
 fn main() {
-    Float3::one();
+    backup();
 
     let mut pixels: Vec<Color> = Vec::with_capacity((IMAGE_WIDTH * IMAGE_HEIGHT) as usize);
 
@@ -45,4 +47,12 @@ fn save_ppm(filename: String, pixels: &[Color]) -> std::io::Result<()> {
     file.flush()?;
 
     Ok(())
+}
+
+fn backup() {
+    let output_path = Path::new(OUTPUT_FILENAME);
+    if output_path.exists() {
+        println!("backup {:?} -> {:?}", OUTPUT_FILENAME, BUCKUP_FILENAME);
+        fs::rename(OUTPUT_FILENAME, BUCKUP_FILENAME).unwrap();
+    }
 }
