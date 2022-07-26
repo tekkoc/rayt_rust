@@ -1,4 +1,5 @@
 use crate::consts::*;
+use rand::prelude::*;
 use std::iter::FromIterator;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -158,6 +159,20 @@ impl Float3 {
     }
 }
 
+impl Float3 {
+    fn random() -> Self {
+        Self::new(random::<f64>(), random::<f64>(), random::<f64>())
+    }
+
+    fn random_full() -> Self {
+        Self::full(random::<f64>())
+    }
+
+    fn random_limit(min: f64, max: f64) -> Self {
+        Self::from_iter(Self::random().0.iter().map(|x| min + x * (max - min)))
+    }
+}
+
 impl FromIterator<f64> for Float3 {
     fn from_iter<T: IntoIterator<Item = f64>>(iter: T) -> Self {
         let mut initer = iter.into_iter();
@@ -166,6 +181,78 @@ impl FromIterator<f64> for Float3 {
             initer.next().unwrap(),
             initer.next().unwrap(),
         ])
+    }
+}
+
+impl std::ops::Neg for Float3 {
+    type Output = Self;
+    fn neg(self) -> Self {
+        Self::from_iter(self.0.iter().map(|x| -x))
+    }
+}
+impl std::ops::AddAssign<Float3> for Float3 {
+    fn add_assign(&mut self, rhs: Self) {
+        for i in 0..3 {
+            self.0[i] += rhs.0[i]
+        }
+    }
+}
+impl std::ops::Add<Float3> for Float3 {
+    type Output = Self;
+    fn add(self, rhs: Self) -> Self {
+        Self::from_iter(self.0.iter().zip(rhs.0.iter()).map(|(l, r)| l + r))
+    }
+}
+impl std::ops::SubAssign<Float3> for Float3 {
+    fn sub_assign(&mut self, rhs: Self) {
+        for i in 0..3 {
+            self.0[i] -= rhs.0[i]
+        }
+    }
+}
+impl std::ops::Sub<Float3> for Float3 {
+    type Output = Self;
+    fn sub(self, rhs: Self) -> Self {
+        Self::from_iter(self.0.iter().zip(rhs.0.iter()).map(|(l, r)| l - r))
+    }
+}
+impl std::ops::Mul<f64> for Float3 {
+    type Output = Self;
+    fn mul(self, rhs: f64) -> Self {
+        Self::from_iter(self.0.map(|x| x * rhs))
+    }
+}
+impl std::ops::Mul<Float3> for f64 {
+    type Output = Float3;
+    fn mul(self, rhs: Float3) -> Float3 {
+        Float3::from_iter(rhs.0.map(|x| x * self))
+    }
+}
+impl std::ops::MulAssign<f64> for Float3 {
+    fn mul_assign(&mut self, rhs: f64) {
+        for i in 0..3 {
+            self.0[i] *= rhs
+        }
+    }
+}
+impl std::ops::Mul<Float3> for Float3 {
+    type Output = Float3;
+    fn mul(self, rhs: Float3) -> Float3 {
+        Float3::from_iter(self.0.iter().zip(rhs.0.iter()).map(|(l, r)| l * r))
+    }
+}
+
+impl std::ops::DivAssign<f64> for Float3 {
+    fn div_assign(&mut self, rhs: f64) {
+        for i in 0..3 {
+            self.0[i] /= rhs
+        }
+    }
+}
+impl std::ops::Div<f64> for Float3 {
+    type Output = Self;
+    fn div(self, rhs: f64) -> Self {
+        Float3::from_iter(self.0.iter().map(|x| x / rhs))
     }
 }
 
@@ -227,5 +314,19 @@ mod tests {
         let b = Float3::new(4.0, 5.0, 6.0);
         let expect = Float3::new(-3.0, 6.0, -3.0);
         assert_eq!(expect, a.cross(b));
+    }
+
+    #[test]
+    fn test_ope() {
+        let a = Float3::new(2.0, 4.0, 6.0);
+        let b = Float3::new(2.0, 2.0, 2.0);
+        assert_eq!(Float3::new(4.0, 6.0, 8.0), a + b);
+        assert_eq!(Float3::new(0.0, 2.0, 4.0), a - b);
+        assert_eq!(Float3::new(4.0, 8.0, 12.0), a * b);
+
+        assert_eq!(Float3::new(4.0, 8.0, 12.0), a * 2.0);
+        assert_eq!(Float3::new(1.0, 2.0, 3.0), a / 2.0);
+
+        // TODO assign 系のテスト
     }
 }
