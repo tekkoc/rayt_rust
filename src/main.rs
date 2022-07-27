@@ -5,6 +5,7 @@ mod rayt;
 
 use image::{Rgb, RgbImage};
 use rayt::float3::*;
+use rayt::window::*;
 use std::{collections::HashMap, fs, path::Path};
 
 const IMAGE_WIDTH: u32 = 200;
@@ -42,6 +43,7 @@ fn main() {
             pixel[2] = color.b();
         });
     img.save(OUTPUT_FILENAME).unwrap();
+    draw_in_window(BUCKUP_FILENAME, img).unwrap();
 }
 
 fn backup() {
