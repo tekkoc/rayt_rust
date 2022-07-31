@@ -5,6 +5,7 @@ mod rayt;
 
 use image::{Rgb, RgbImage};
 use rayt::float3::*;
+use rayt::quat::*;
 use rayt::window::*;
 use std::{collections::HashMap, fs, path::Path};
 
@@ -16,6 +17,9 @@ const BUCKUP_FILENAME: &str = "render_bak.png";
 
 fn main() {
     backup();
+
+    // TODO quat を use しないと quat のテストでエラーになるため、適当に use している
+    Quat::new(0.0, 0.0, 0.0, 0.0);
 
     let mut pixels = HashMap::<(u32, u32), Color>::new();
 
