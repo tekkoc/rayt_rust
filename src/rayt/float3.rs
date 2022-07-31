@@ -111,17 +111,15 @@ impl Float3 {
         self.0.iter().fold(0.0, |acc, x| acc + x * x)
     }
 
-    // TODO 修正
-    //
     // 正規化
-    // pub fn normalize(&self) -> Self {
-    //     *self / self.length()
-    // }
-    //
+    pub fn normalize(&self) -> Self {
+        *self / self.length()
+    }
+
     // 線形補間
-    // pub fn lerp(&self, v: Self, t: f64) -> Self {
-    //     *self + (v - *self) * t
-    // }
+    pub fn lerp(&self, v: Self, t: f64) -> Self {
+        *self + (v - *self) * t
+    }
 }
 
 // カラー演算
