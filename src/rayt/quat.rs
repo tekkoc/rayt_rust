@@ -97,14 +97,3 @@ impl std::ops::Mul<Quat> for Quat {
         )
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use crate::Quat;
-
-    #[test]
-    fn test_create() {
-        // TODO rot 系テスト
-        assert_eq!(Quat::new(1.0, 2.0, 3.0, 4.0), Quat::new(1.0, 2.0, 3.0, 4.0));
-    }
-}
