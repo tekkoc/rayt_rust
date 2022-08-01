@@ -9,7 +9,6 @@ use rayt::camera::*;
 use rayt::float3::*;
 use rayt::quat::*;
 use rayt::ray::*;
-use rayt::window::*;
 use std::{fs, path::Path};
 
 const IMAGE_WIDTH: u32 = 400;
@@ -70,7 +69,6 @@ fn main() {
             pixel[2] = rgb[2];
         });
     img.save(OUTPUT_FILENAME).unwrap();
-    draw_in_window(BUCKUP_FILENAME, img).unwrap();
 }
 
 fn backup() {
