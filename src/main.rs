@@ -4,6 +4,7 @@ mod consts;
 mod rayt;
 
 use image::{Rgb, RgbImage};
+use rayon::prelude::*;
 use rayt::camera::*;
 use rayt::float3::*;
 use rayt::quat::*;
@@ -38,7 +39,7 @@ fn main() {
     let mut img = RgbImage::new(IMAGE_WIDTH, IMAGE_HEIGHT);
     img.enumerate_pixels_mut()
         .collect::<Vec<(u32, u32, &mut Rgb<u8>)>>()
-        .iter_mut()
+        .par_iter_mut()
         .for_each(|(x, y, pixel)| {
             let u = *x as f64 / (IMAGE_WIDTH - 1) as f64;
             let v = *y as f64 / (IMAGE_HEIGHT - 1) as f64;
