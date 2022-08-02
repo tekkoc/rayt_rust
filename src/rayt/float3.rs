@@ -158,15 +158,15 @@ impl Float3 {
 }
 
 impl Float3 {
-    fn random() -> Self {
+    pub fn random() -> Self {
         Self::new(random::<f64>(), random::<f64>(), random::<f64>())
     }
 
-    fn random_full() -> Self {
+    pub fn random_full() -> Self {
         Self::full(random::<f64>())
     }
 
-    fn random_limit(min: f64, max: f64) -> Self {
+    pub fn random_limit(min: f64, max: f64) -> Self {
         Self::from_iter(Self::random().0.iter().map(|x| min + x * (max - min)))
     }
 }

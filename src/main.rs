@@ -134,5 +134,5 @@ impl Scene for SimpleScene {
 }
 
 fn main() {
-    render(SimpleScene::new());
+    render_aa(SimpleScene::new());
 }
