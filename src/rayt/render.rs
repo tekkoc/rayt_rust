@@ -62,6 +62,7 @@ pub fn render(scene: impl Scene + Sync) {
     img.save(OUTPUT_FILENAME).unwrap();
 }
 
+const GAMMA_FACTOR: f64 = 2.2;
 pub fn render_aa(scene: impl Scene + Sync) {
     // scene は複数スレッドから参照されるため、Syncマーカートレイトが必要
 
@@ -84,7 +85,7 @@ pub fn render_aa(scene: impl Scene + Sync) {
 
             pixel_color /= scene.spp() as f64;
 
-            let rgb = pixel_color.to_rgb();
+            let rgb = pixel_color.gamma(GAMMA_FACTOR).to_rgb();
 
             pixel[0] = rgb[0];
             pixel[1] = rgb[1];

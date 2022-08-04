@@ -124,10 +124,11 @@ impl Scene for SimpleScene {
     }
 
     fn trace(&self, ray: Ray) -> Color {
-        let hit_info = self.world.hit(&ray, 0.0, f64::MAX);
+        let hit_info = self.world.hit(&ray, 0.001, f64::MAX);
 
         if let Some(hit) = hit_info {
-            return 0.5 * (hit.n + Vec3::one());
+            let target = hit.p + hit.n + Vec3::random_in_unit_sphere();
+            return 0.5 * self.trace(Ray::new(hit.p, target - hit.p));
         }
         self.background(ray.direction)
     }

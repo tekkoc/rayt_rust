@@ -158,6 +158,18 @@ impl Float3 {
 }
 
 impl Float3 {
+    // リニア空間からsRGB空間へ
+    pub fn gamma(&self, factor: f64) -> Self {
+        let recip = factor.recip();
+        Self::from_iter(self.0.iter().map(|x| x.powf(recip)))
+    }
+    // sRGB空間からリニア空間へ
+    pub fn degamma(&self, factor: f64) -> Self {
+        Self::from_iter(self.0.iter().map(|x| x.powf(factor)))
+    }
+}
+
+impl Float3 {
     pub fn random() -> Self {
         Self::new(random::<f64>(), random::<f64>(), random::<f64>())
     }
@@ -168,6 +180,16 @@ impl Float3 {
 
     pub fn random_limit(min: f64, max: f64) -> Self {
         Self::from_iter(Self::random().0.iter().map(|x| min + x * (max - min)))
+    }
+
+    // 単位球の中の任意の点を生成
+    pub fn random_in_unit_sphere() -> Self {
+        loop {
+            let point = Self::random_limit(-1.0, 1.0);
+            if point.length_squared() < 1.0 {
+                return point;
+            }
+        }
     }
 }
 
