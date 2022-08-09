@@ -7,16 +7,55 @@ use rayt::camera::*;
 use rayt::float3::*;
 use rayt::ray::*;
 use rayt::render::*;
+use std::sync::Arc;
 
 struct HitInfo {
-    t: f64,    // 光線のパラメーター
-    p: Point3, // 衝突位置
-    n: Vec3,   // 衝突した位置の法線
+    t: f64,               // 光線のパラメーター
+    p: Point3,            // 衝突位置
+    n: Vec3,              // 衝突した位置の法線
+    m: Arc<dyn Material>, // 材質
 }
 
 impl HitInfo {
-    const fn new(t: f64, p: Point3, n: Vec3) -> Self {
-        Self { t, p, n }
+    const fn new(t: f64, p: Point3, n: Vec3, m: Arc<dyn Material>) -> Self {
+        Self { t, p, n, m }
+    }
+}
+
+trait Material: Sync + Send {
+    // 散乱をシミュレート
+    fn scatter(&self, ray: &Ray, hit: &HitInfo) -> Option<ScatterInfo>;
+}
+
+struct ScatterInfo {
+    ray: Ray,      // 散乱後の光の向き
+    albedo: Color, // 反射率(アルベド)
+}
+
+impl ScatterInfo {
+    fn new(ray: Ray, albedo: Color) -> Self {
+        Self { ray, albedo }
+    }
+}
+
+// 拡散反射するような材質
+struct Lambertian {
+    albedo: Color,
+}
+
+impl Lambertian {
+    fn new(albedo: Color) -> Self {
+        Self { albedo }
+    }
+}
+
+impl Material for Lambertian {
+    fn scatter(&self, _ray: &Ray, hit: &HitInfo) -> Option<ScatterInfo> {
+        let target = hit.p + hit.n + Vec3::random_in_unit_sphere();
+        Some(ScatterInfo::new(
+            Ray::new(hit.p, target - hit.p),
+            self.albedo,
+        ))
     }
 }
 
@@ -32,11 +71,16 @@ trait Shape: Sync {
 struct Sphere {
     center: Point3,
     radius: f64,
+    material: Arc<dyn Material>,
 }
 
 impl Sphere {
-    const fn new(center: Point3, radius: f64) -> Self {
-        Self { center, radius }
+    const fn new(center: Point3, radius: f64, material: Arc<dyn Material>) -> Self {
+        Self {
+            center,
+            radius,
+            material,
+        }
     }
 }
 
@@ -52,12 +96,22 @@ impl Shape for Sphere {
             let temp = (-b - root) / (2.0 * a);
             if t0 < temp && temp < t1 {
                 let p = ray.at(temp);
-                return Some(HitInfo::new(temp, p, (p - self.center) / self.radius));
+                return Some(HitInfo::new(
+                    temp,
+                    p,
+                    (p - self.center) / self.radius,
+                    Arc::clone(&self.material),
+                ));
             }
             let temp = (-b + root) / (2.0 * a);
             if t0 < temp && temp < t1 {
                 let p = ray.at(temp);
-                return Some(HitInfo::new(temp, p, (p - self.center) / self.radius));
+                return Some(HitInfo::new(
+                    temp,
+                    p,
+                    (p - self.center) / self.radius,
+                    Arc::clone(&self.material),
+                ));
             }
         }
         None
@@ -102,8 +156,21 @@ impl SimpleScene {
     fn new() -> Self {
         let mut world = ShapeList::new();
 
-        world.push(Box::new(Sphere::new(Point3::new(0.0, 0.0, -1.0), 0.5)));
-        world.push(Box::new(Sphere::new(Point3::new(0.0, -100.5, -1.0), 100.0)));
+        world.push(Box::new(Sphere::new(
+            Point3::new(0.6, 0.0, -1.0),
+            0.5,
+            Arc::new(Lambertian::new(Color::new(0.1, 0.2, 0.5))),
+        )));
+        world.push(Box::new(Sphere::new(
+            Point3::new(-0.6, 0.0, -1.0),
+            0.5,
+            Arc::new(Lambertian::new(Color::new(0.8, 0.0, 0.0))),
+        )));
+        world.push(Box::new(Sphere::new(
+            Point3::new(0.0, -100.5, -1.0),
+            100.0,
+            Arc::new(Lambertian::new(Color::new(0.8, 0.8, 0.0))),
+        )));
 
         Self { world }
     }
@@ -127,8 +194,12 @@ impl Scene for SimpleScene {
         let hit_info = self.world.hit(&ray, 0.001, f64::MAX);
 
         if let Some(hit) = hit_info {
-            let target = hit.p + hit.n + Vec3::random_in_unit_sphere();
-            return 0.5 * self.trace(Ray::new(hit.p, target - hit.p));
+            let scatter_info = hit.m.scatter(&ray, &hit);
+            if let Some(scatter) = scatter_info {
+                return scatter.albedo * self.trace(scatter.ray);
+            } else {
+                return Color::zero();
+            }
         }
         self.background(ray.direction)
     }
