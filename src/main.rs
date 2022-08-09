@@ -156,16 +156,61 @@ impl SimpleScene {
     fn new() -> Self {
         let mut world = ShapeList::new();
 
+        // 体
         world.push(Box::new(Sphere::new(
-            Point3::new(0.6, 0.0, -1.0),
+            Point3::new(0.0, 0.1, -1.0),
             0.5,
-            Arc::new(Lambertian::new(Color::new(0.1, 0.2, 0.5))),
+            Arc::new(Lambertian::new(Color::new(0.0, 0.7, 0.2))),
         )));
+        // 右足
         world.push(Box::new(Sphere::new(
-            Point3::new(-0.6, 0.0, -1.0),
-            0.5,
-            Arc::new(Lambertian::new(Color::new(0.8, 0.0, 0.0))),
+            Point3::new(0.4, -0.4, -1.0),
+            0.1,
+            Arc::new(Lambertian::new(Color::new(0.1, 0.1, 0.1))),
         )));
+        // 左足
+        world.push(Box::new(Sphere::new(
+            Point3::new(-0.4, -0.4, -1.0),
+            0.1,
+            Arc::new(Lambertian::new(Color::new(0.1, 0.1, 0.1))),
+        )));
+        // 右手
+        world.push(Box::new(Sphere::new(
+            Point3::new(0.3, 0.0, -0.5),
+            0.05,
+            Arc::new(Lambertian::new(Color::new(0.1, 0.1, 0.1))),
+        )));
+        // 左手
+        world.push(Box::new(Sphere::new(
+            Point3::new(-0.3, 0.0, -0.5),
+            0.05,
+            Arc::new(Lambertian::new(Color::new(0.1, 0.1, 0.1))),
+        )));
+        // 左白目
+        world.push(Box::new(Sphere::new(
+            Point3::new(-0.1, 0.1, -0.575),
+            0.11,
+            Arc::new(Lambertian::new(Color::new(0.9, 0.9, 0.9))),
+        )));
+        // 左黒目
+        world.push(Box::new(Sphere::new(
+            Point3::new(-0.08, 0.075, -0.4),
+            0.02,
+            Arc::new(Lambertian::new(Color::new(0.1, 0.1, 0.1))),
+        )));
+        // 右白目
+        world.push(Box::new(Sphere::new(
+            Point3::new(0.1, 0.1, -0.575),
+            0.11,
+            Arc::new(Lambertian::new(Color::new(0.9, 0.9, 0.9))),
+        )));
+        // 右黒目
+        world.push(Box::new(Sphere::new(
+            Point3::new(0.08, 0.075, -0.4),
+            0.02,
+            Arc::new(Lambertian::new(Color::new(0.1, 0.1, 0.1))),
+        )));
+        // 地面
         world.push(Box::new(Sphere::new(
             Point3::new(0.0, -100.5, -1.0),
             100.0,
