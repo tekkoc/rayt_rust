@@ -59,6 +59,29 @@ impl Material for Lambertian {
     }
 }
 
+struct Metal {
+    albedo: Color,
+    fuzz: f64, // 反射のずれ度合い
+}
+
+impl Metal {
+    fn new(albedo: Color, fuzz: f64) -> Self {
+        Self { albedo, fuzz }
+    }
+}
+
+impl Material for Metal {
+    fn scatter(&self, ray: &Ray, hit: &HitInfo) -> Option<ScatterInfo> {
+        let mut reflected = ray.direction.normalize().reflect(hit.n);
+        reflected = reflected + self.fuzz * Vec3::random_in_unit_sphere();
+        if reflected.dot(hit.n) > 0.0 {
+            Some(ScatterInfo::new(Ray::new(hit.p, reflected), self.albedo))
+        } else {
+            None
+        }
+    }
+}
+
 trait Shape: Sync {
     fn hit(
         &self,
@@ -164,7 +187,7 @@ impl SimpleScene {
         world.push(Box::new(Sphere::new(
             Point3::new(-0.6, 0.0, -1.0),
             0.5,
-            Arc::new(Lambertian::new(Color::new(0.8, 0.0, 0.0))),
+            Arc::new(Metal::new(Color::new(0.8, 0.8, 0.8), 1.0)),
         )));
         world.push(Box::new(Sphere::new(
             Point3::new(0.0, -100.5, -1.0),
@@ -181,7 +204,7 @@ impl SimpleScene {
     }
 }
 
-impl Scene for SimpleScene {
+impl SceneWithDepth for SimpleScene {
     fn camera(&self) -> Camera {
         Camera::new(
             Vec3::new(4.0, 0.0, 0.0),
@@ -190,13 +213,17 @@ impl Scene for SimpleScene {
         )
     }
 
-    fn trace(&self, ray: Ray) -> Color {
+    fn trace(&self, ray: Ray, depth: usize) -> Color {
         let hit_info = self.world.hit(&ray, 0.001, f64::MAX);
 
         if let Some(hit) = hit_info {
-            let scatter_info = hit.m.scatter(&ray, &hit);
+            let scatter_info = if depth > 0 {
+                hit.m.scatter(&ray, &hit)
+            } else {
+                None
+            };
             if let Some(scatter) = scatter_info {
-                return scatter.albedo * self.trace(scatter.ray);
+                return scatter.albedo * self.trace(scatter.ray, depth - 1);
             } else {
                 return Color::zero();
             }
@@ -206,5 +233,5 @@ impl Scene for SimpleScene {
 }
 
 fn main() {
-    render_aa(SimpleScene::new());
+    render_aa_with_depth(SimpleScene::new());
 }

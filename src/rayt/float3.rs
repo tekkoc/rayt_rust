@@ -122,6 +122,13 @@ impl Float3 {
     }
 }
 
+// 反射
+impl Float3 {
+    pub fn reflect(&self, normal: Self) -> Self {
+        *self - 2.0 * self.dot(normal) * normal
+    }
+}
+
 // カラー演算
 impl Float3 {
     pub fn r(&self) -> u8 {

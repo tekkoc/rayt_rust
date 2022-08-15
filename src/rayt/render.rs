@@ -21,9 +21,9 @@ fn backup() {
     }
 }
 
-pub trait Scene {
+pub trait SceneWithDepth {
     fn camera(&self) -> Camera;
-    fn trace(&self, ray: Ray) -> Color;
+    fn trace(&self, ray: Ray, depth: usize) -> Color;
     fn width(&self) -> u32 {
         IMAGE_WIDTH
     }
@@ -38,32 +38,9 @@ pub trait Scene {
     }
 }
 
-pub fn render(scene: impl Scene + Sync) {
-    // scene は複数スレッドから参照されるため、Syncマーカートレイトが必要
-
-    backup();
-
-    let camera = scene.camera();
-
-    let mut img = RgbImage::new(IMAGE_WIDTH, IMAGE_HEIGHT);
-    img.enumerate_pixels_mut()
-        .collect::<Vec<(u32, u32, &mut Rgb<u8>)>>()
-        .par_iter_mut()
-        .for_each(|(x, y, pixel)| {
-            let u = *x as f64 / (IMAGE_WIDTH - 1) as f64;
-            let v = (IMAGE_HEIGHT - *y - 1) as f64 / (IMAGE_HEIGHT - 1) as f64;
-            let ray = camera.ray(u, v);
-            let rgb = scene.trace(ray).to_rgb();
-
-            pixel[0] = rgb[0];
-            pixel[1] = rgb[1];
-            pixel[2] = rgb[2];
-        });
-    img.save(OUTPUT_FILENAME).unwrap();
-}
-
 const GAMMA_FACTOR: f64 = 2.2;
-pub fn render_aa(scene: impl Scene + Sync) {
+const MAX_RAY_BOUNCE_DEPTH: usize = 50;
+pub fn render_aa_with_depth(scene: impl SceneWithDepth + Sync) {
     // scene は複数スレッドから参照されるため、Syncマーカートレイトが必要
 
     backup();
@@ -80,7 +57,7 @@ pub fn render_aa(scene: impl Scene + Sync) {
                 let u = (*x as f64 + rx) / (scene.width() - 1) as f64;
                 let v = ((scene.height() - *y - 1) as f64 + ry) / (scene.height() - 1) as f64;
                 let ray = camera.ray(u, v);
-                acc + scene.trace(ray)
+                acc + scene.trace(ray, MAX_RAY_BOUNCE_DEPTH)
             });
 
             pixel_color /= scene.spp() as f64;
