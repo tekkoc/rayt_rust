@@ -82,6 +82,42 @@ impl Material for Metal {
     }
 }
 
+struct Dielectric {
+    ri: f64, // 屈折率
+}
+
+impl Dielectric {
+    fn new(ri: f64) -> Self {
+        Self { ri }
+    }
+
+    fn schlick(cosine: f64, ri: f64) -> f64 {
+        let r0 = ((1.0 - ri) / (1.0 + ri)).powi(2);
+        r0 + (1.0 - r0) * (1.0 - cosine).powi(5)
+    }
+}
+
+impl Material for Dielectric {
+    fn scatter(&self, ray: &Ray, hit: &HitInfo) -> Option<ScatterInfo> {
+        let reflected = ray.direction.reflect(hit.n);
+        let (outward_normal, ni_over_nt, cosine) = {
+            let dot = ray.direction.dot(hit.n);
+            if dot > 0.0 {
+                (-hit.n, self.ri, self.ri * dot / ray.direction.length())
+            } else {
+                (hit.n, self.ri.recip(), -dot / ray.direction.length())
+            }
+        };
+
+        if let Some(refracted) = (-ray.direction).refract(outward_normal, ni_over_nt) {
+            if Vec3::random_full().x() > Self::schlick(cosine, self.ri) {
+                return Some(ScatterInfo::new(Ray::new(hit.p, refracted), Color::one()));
+            }
+        }
+        Some(ScatterInfo::new(Ray::new(hit.p, reflected), Color::one()))
+    }
+}
+
 trait Shape: Sync {
     fn hit(
         &self,
@@ -187,7 +223,17 @@ impl SimpleScene {
         world.push(Box::new(Sphere::new(
             Point3::new(-0.6, 0.0, -1.0),
             0.5,
-            Arc::new(Metal::new(Color::new(0.8, 0.8, 0.8), 1.0)),
+            Arc::new(Dielectric::new(1.5)),
+        )));
+        world.push(Box::new(Sphere::new(
+            Point3::new(-0.6, 0.0, -1.0),
+            -0.45,
+            Arc::new(Dielectric::new(1.5)),
+        )));
+        world.push(Box::new(Sphere::new(
+            Point3::new(-0.0, -0.35, -0.8),
+            0.15,
+            Arc::new(Metal::new(Color::new(0.8, 0.8, 0.8), 0.2)),
         )));
         world.push(Box::new(Sphere::new(
             Point3::new(0.0, -100.5, -1.0),
