@@ -9,16 +9,38 @@ use rayt::ray::*;
 use rayt::render::*;
 use std::sync::Arc;
 
+trait Texture: Sync + Send {
+    fn value(&self, u: f64, v: f64, p: Point3) -> Color;
+}
+
 struct HitInfo {
     t: f64,               // 光線のパラメーター
     p: Point3,            // 衝突位置
     n: Vec3,              // 衝突した位置の法線
     m: Arc<dyn Material>, // 材質
+    u: f64,               // テキスチャ座標
+    v: f64,               // テキスチャ座標
 }
 
 impl HitInfo {
-    const fn new(t: f64, p: Point3, n: Vec3, m: Arc<dyn Material>) -> Self {
-        Self { t, p, n, m }
+    const fn new(t: f64, p: Point3, n: Vec3, m: Arc<dyn Material>, u: f64, v: f64) -> Self {
+        Self { t, p, n, m, u, v }
+    }
+}
+
+struct ColorTexture {
+    color: Color,
+}
+
+impl ColorTexture {
+    const fn new(color: Color) -> Self {
+        Self { color }
+    }
+}
+
+impl Texture for ColorTexture {
+    fn value(&self, _u: f64, _v: f64, _p: Point3) -> Color {
+        self.color
     }
 }
 
@@ -40,11 +62,11 @@ impl ScatterInfo {
 
 // 拡散反射するような材質
 struct Lambertian {
-    albedo: Color,
+    albedo: Box<dyn Texture>,
 }
 
 impl Lambertian {
-    fn new(albedo: Color) -> Self {
+    fn new(albedo: Box<dyn Texture>) -> Self {
         Self { albedo }
     }
 }
@@ -52,20 +74,18 @@ impl Lambertian {
 impl Material for Lambertian {
     fn scatter(&self, _ray: &Ray, hit: &HitInfo) -> Option<ScatterInfo> {
         let target = hit.p + hit.n + Vec3::random_in_unit_sphere();
-        Some(ScatterInfo::new(
-            Ray::new(hit.p, target - hit.p),
-            self.albedo,
-        ))
+        let albedo = self.albedo.value(hit.u, hit.v, hit.p);
+        Some(ScatterInfo::new(Ray::new(hit.p, target - hit.p), albedo))
     }
 }
 
 struct Metal {
-    albedo: Color,
+    albedo: Box<dyn Texture>,
     fuzz: f64, // 反射のずれ度合い
 }
 
 impl Metal {
-    fn new(albedo: Color, fuzz: f64) -> Self {
+    fn new(albedo: Box<dyn Texture>, fuzz: f64) -> Self {
         Self { albedo, fuzz }
     }
 }
@@ -75,7 +95,8 @@ impl Material for Metal {
         let mut reflected = ray.direction.normalize().reflect(hit.n);
         reflected = reflected + self.fuzz * Vec3::random_in_unit_sphere();
         if reflected.dot(hit.n) > 0.0 {
-            Some(ScatterInfo::new(Ray::new(hit.p, reflected), self.albedo))
+            let albedo = self.albedo.value(hit.u, hit.v, hit.p);
+            Some(ScatterInfo::new(Ray::new(hit.p, reflected), albedo))
         } else {
             None
         }
@@ -160,6 +181,8 @@ impl Shape for Sphere {
                     p,
                     (p - self.center) / self.radius,
                     Arc::clone(&self.material),
+                    0.0,
+                    0.0,
                 ));
             }
             let temp = (-b + root) / (2.0 * a);
@@ -170,6 +193,8 @@ impl Shape for Sphere {
                     p,
                     (p - self.center) / self.radius,
                     Arc::clone(&self.material),
+                    0.0,
+                    0.0,
                 ));
             }
         }
@@ -209,6 +234,7 @@ impl Shape for ShapeList {
 }
 
 struct ShapeBuilder {
+    texture: Option<Box<dyn Texture>>,
     material: Option<Arc<dyn Material>>,
     shape: Option<Box<dyn Shape>>,
 }
@@ -216,20 +242,29 @@ struct ShapeBuilder {
 impl ShapeBuilder {
     fn new() -> Self {
         Self {
+            texture: None,
             material: None,
             shape: None,
         }
     }
 
-    // material
-
-    fn lambertian(mut self, albedo: Color) -> Self {
-        self.material = Some(Arc::new(Lambertian::new(albedo)));
+    fn color_texture(mut self, color: Color) -> Self {
+        self.texture = Some(Box::new(ColorTexture::new(color)));
         self
     }
 
-    fn metal(mut self, albedo: Color, fuzz: f64) -> Self {
-        self.material = Some(Arc::new(Metal::new(albedo, fuzz)));
+    // material
+
+    fn lambertian(mut self) -> Self {
+        self.material = Some(Arc::new(Lambertian::new(self.texture.unwrap())));
+        // none にしないと所有権チェックでエラーになる
+        self.texture = None;
+        self
+    }
+
+    fn metal(mut self, fuzz: f64) -> Self {
+        self.material = Some(Arc::new(Metal::new(self.texture.unwrap(), fuzz)));
+        self.texture = None;
         self
     }
 
@@ -264,7 +299,8 @@ impl RandomScene {
 
         world.push(
             ShapeBuilder::new()
-                .lambertian(Color::new(0.5, 0.5, 0.5))
+                .color_texture(Color::new(0.5, 0.5, 0.5))
+                .lambertian()
                 .sphere(Point3::new(0.0, -1000.0, 0.0), 1000.0)
                 .build(),
         );
@@ -280,14 +316,16 @@ impl RandomScene {
                         if material_choice < 0.8 {
                             let albedo = Color::random() * Color::random();
                             ShapeBuilder::new()
-                                .lambertian(albedo)
+                                .color_texture(albedo)
+                                .lambertian()
                                 .sphere(center, 0.2)
                                 .build()
                         } else if material_choice < 0.95 {
                             let albedo = Color::random() * Color::random();
                             let fuzz = Float3::random_full().x();
                             ShapeBuilder::new()
-                                .metal(albedo, fuzz)
+                                .color_texture(albedo)
+                                .metal(fuzz)
                                 .sphere(center, 0.2)
                                 .build()
                         } else {
@@ -310,13 +348,15 @@ impl RandomScene {
         );
         world.push(
             ShapeBuilder::new()
-                .lambertian(Color::new(0.4, 0.2, 0.1))
+                .color_texture(Color::new(0.4, 0.2, 0.1))
+                .lambertian()
                 .sphere(Point3::new(-4.0, 1.0, 0.0), 1.0)
                 .build(),
         );
         world.push(
             ShapeBuilder::new()
-                .metal(Color::new(0.7, 0.6, 0.5), 0.0)
+                .color_texture(Color::new(0.7, 0.6, 0.5))
+                .metal(0.0)
                 .sphere(Point3::new(4.0, 1.0, 0.0), 1.0)
                 .build(),
         );
@@ -367,31 +407,27 @@ impl SimpleScene {
     fn new() -> Self {
         let mut world = ShapeList::new();
 
-        world.push(Box::new(Sphere::new(
-            Point3::new(0.6, 0.0, -1.0),
-            0.5,
-            Arc::new(Lambertian::new(Color::new(0.1, 0.2, 0.5))),
-        )));
-        world.push(Box::new(Sphere::new(
-            Point3::new(-0.6, 0.0, -1.0),
-            0.5,
-            Arc::new(Dielectric::new(1.5)),
-        )));
-        world.push(Box::new(Sphere::new(
-            Point3::new(-0.6, 0.0, -1.0),
-            -0.45,
-            Arc::new(Dielectric::new(1.5)),
-        )));
-        world.push(Box::new(Sphere::new(
-            Point3::new(-0.0, -0.35, -0.8),
-            0.15,
-            Arc::new(Metal::new(Color::new(0.8, 0.8, 0.8), 0.2)),
-        )));
-        world.push(Box::new(Sphere::new(
-            Point3::new(0.0, -100.5, -1.0),
-            100.0,
-            Arc::new(Lambertian::new(Color::new(0.8, 0.8, 0.0))),
-        )));
+        world.push(
+            ShapeBuilder::new()
+                .color_texture(Color::new(0.1, 0.2, 0.5))
+                .lambertian()
+                .sphere(Point3::new(0.6, 0.0, -1.0), 0.5)
+                .build(),
+        );
+        world.push(
+            ShapeBuilder::new()
+                .color_texture(Color::new(0.8, 0.8, 0.8))
+                .metal(0.4)
+                .sphere(Point3::new(-0.6, 0.0, -1.0), 0.5)
+                .build(),
+        );
+        world.push(
+            ShapeBuilder::new()
+                .color_texture(Color::new(0.8, 0.8, 0.0))
+                .lambertian()
+                .sphere(Point3::new(0.0, -100.5, -1.0), 100.0)
+                .build(),
+        );
 
         Self { world }
     }
@@ -431,6 +467,6 @@ impl SceneWithDepth for SimpleScene {
 }
 
 fn main() {
-    // render_aa_with_depth(SimpleScene::new());
-    render_aa_with_depth(RandomScene::new());
+    render_aa_with_depth(SimpleScene::new());
+    // render_aa_with_depth(RandomScene::new());
 }
