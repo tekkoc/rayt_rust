@@ -208,6 +208,158 @@ impl Shape for ShapeList {
     }
 }
 
+struct ShapeBuilder {
+    material: Option<Arc<dyn Material>>,
+    shape: Option<Box<dyn Shape>>,
+}
+
+impl ShapeBuilder {
+    fn new() -> Self {
+        Self {
+            material: None,
+            shape: None,
+        }
+    }
+
+    // material
+
+    fn lambertian(mut self, albedo: Color) -> Self {
+        self.material = Some(Arc::new(Lambertian::new(albedo)));
+        self
+    }
+
+    fn metal(mut self, albedo: Color, fuzz: f64) -> Self {
+        self.material = Some(Arc::new(Metal::new(albedo, fuzz)));
+        self
+    }
+
+    fn dielectric(mut self, ri: f64) -> Self {
+        self.material = Some(Arc::new(Dielectric::new(ri)));
+        self
+    }
+
+    // shapes
+    fn sphere(mut self, center: Point3, radius: f64) -> Self {
+        self.shape = Some(Box::new(Sphere::new(
+            center,
+            radius,
+            self.material.unwrap(),
+        )));
+        self.material = None;
+        self
+    }
+
+    fn build(self) -> Box<dyn Shape> {
+        self.shape.unwrap()
+    }
+}
+
+struct RandomScene {
+    world: ShapeList,
+}
+
+impl RandomScene {
+    fn new() -> Self {
+        let mut world = ShapeList::new();
+
+        world.push(
+            ShapeBuilder::new()
+                .lambertian(Color::new(0.5, 0.5, 0.5))
+                .sphere(Point3::new(0.0, -1000.0, 0.0), 1000.0)
+                .build(),
+        );
+
+        for au in -11..11 {
+            let a = au as f64;
+            for bu in -11..11 {
+                let b = bu as f64;
+                let [rx, rz, material_choice] = Float3::random().to_array();
+                let center = Point3::new(a + 0.9 * rx, 0.2, b + 0.9 * rz);
+                if (center - Point3::new(4.0, 0.2, 0.0)).length() > 0.9 {
+                    world.push({
+                        if material_choice < 0.8 {
+                            let albedo = Color::random() * Color::random();
+                            ShapeBuilder::new()
+                                .lambertian(albedo)
+                                .sphere(center, 0.2)
+                                .build()
+                        } else if material_choice < 0.95 {
+                            let albedo = Color::random() * Color::random();
+                            let fuzz = Float3::random_full().x();
+                            ShapeBuilder::new()
+                                .metal(albedo, fuzz)
+                                .sphere(center, 0.2)
+                                .build()
+                        } else {
+                            ShapeBuilder::new()
+                                .dielectric(1.5)
+                                .sphere(center, 0.2)
+                                .build()
+                        }
+                    })
+                }
+            }
+        }
+
+        // Big spheres
+        world.push(
+            ShapeBuilder::new()
+                .dielectric(1.5)
+                .sphere(Point3::new(0.0, 1.0, 0.0), 1.0)
+                .build(),
+        );
+        world.push(
+            ShapeBuilder::new()
+                .lambertian(Color::new(0.4, 0.2, 0.1))
+                .sphere(Point3::new(-4.0, 1.0, 0.0), 1.0)
+                .build(),
+        );
+        world.push(
+            ShapeBuilder::new()
+                .metal(Color::new(0.7, 0.6, 0.5), 0.0)
+                .sphere(Point3::new(4.0, 1.0, 0.0), 1.0)
+                .build(),
+        );
+
+        Self { world }
+    }
+
+    fn background(&self, d: Vec3) -> Color {
+        let t = 0.5 * (d.normalize().y() + 1.0);
+        Color::one().lerp(Color::new(0.5, 0.7, 1.0), t)
+    }
+}
+
+impl SceneWithDepth for RandomScene {
+    fn camera(&self) -> Camera {
+        Camera::from_lookat(
+            Vec3::new(13.0, 2.0, 3.0),
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::yaxis(),
+            20.0,
+            self.aspect(),
+        )
+    }
+
+    fn trace(&self, ray: Ray, depth: usize) -> Color {
+        let hit_info = self.world.hit(&ray, 0.001, f64::MAX);
+
+        if let Some(hit) = hit_info {
+            let scatter_info = if depth > 0 {
+                hit.m.scatter(&ray, &hit)
+            } else {
+                None
+            };
+            if let Some(scatter) = scatter_info {
+                return scatter.albedo * self.trace(scatter.ray, depth - 1);
+            } else {
+                return Color::zero();
+            }
+        }
+        self.background(ray.direction)
+    }
+}
+
 struct SimpleScene {
     world: ShapeList,
 }
@@ -279,5 +431,6 @@ impl SceneWithDepth for SimpleScene {
 }
 
 fn main() {
-    render_aa_with_depth(SimpleScene::new());
+    // render_aa_with_depth(SimpleScene::new());
+    render_aa_with_depth(RandomScene::new());
 }
