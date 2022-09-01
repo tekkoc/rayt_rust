@@ -327,6 +327,26 @@ impl Shape for Rect {
     }
 }
 
+struct FlipFace {
+    shape: Box<dyn Shape>,
+}
+
+impl FlipFace {
+    fn new(shape: Box<dyn Shape>) -> Self {
+        Self { shape }
+    }
+}
+
+impl Shape for FlipFace {
+    fn hit(&self, ray: &Ray, t0: f64, t1: f64) -> Option<HitInfo> {
+        if let Some(hit) = self.shape.hit(ray, t0, t1) {
+            Some(HitInfo { n: -hit.n, ..hit })
+        } else {
+            None
+        }
+    }
+}
+
 struct ShapeList {
     pub objects: Vec<Box<dyn Shape>>,
 }
@@ -466,6 +486,11 @@ impl ShapeBuilder {
         self
     }
 
+    fn flip_face(mut self) -> Self {
+        self.shape = Some(Box::new(FlipFace::new(self.shape.unwrap())));
+        self
+    }
+
     fn build(self) -> Box<dyn Shape> {
         self.shape.unwrap()
     }
@@ -488,6 +513,7 @@ impl CornelBoxScene {
                 .color_texture(green)
                 .lambertian()
                 .rect_yz(0.0, 555.0, 0.0, 555.0, 555.0)
+                .flip_face()
                 .build(),
         );
         world.push(
@@ -509,6 +535,7 @@ impl CornelBoxScene {
                 .color_texture(white)
                 .lambertian()
                 .rect_xz(0.0, 555.0, 0.0, 555.0, 555.0)
+                .flip_face()
                 .build(),
         );
         world.push(
@@ -523,6 +550,7 @@ impl CornelBoxScene {
                 .color_texture(white)
                 .lambertian()
                 .rect_xy(0.0, 555.0, 0.0, 555.0, 555.0)
+                .flip_face()
                 .build(),
         );
 
@@ -533,6 +561,7 @@ impl CornelBoxScene {
         // TODO どこかバグっていて、背景を黒にすると何も見えなくなる
         let t = 0.5 * (d.normalize().y() + 1.0);
         Color::one().lerp(Color::new(0.5, 0.7, 1.0), t)
+        // Color::full(0.1)
         // Color::full(0.0)
     }
 }
