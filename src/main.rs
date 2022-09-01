@@ -306,7 +306,7 @@ impl Shape for Rect {
         }
 
         let t = (self.k - origin.z()) / direction.z();
-        if t < t0 || t1 > t1 {
+        if t < t0 || t > t1 {
             return None;
         }
 
@@ -664,7 +664,105 @@ impl SceneWithDepth for SimpleScene {
     }
 }
 
+struct CornelBoxScene {
+    world: ShapeList,
+}
+
+impl CornelBoxScene {
+    fn new() -> Self {
+        let mut world = ShapeList::new();
+
+        let red = Color::new(0.64, 0.05, 0.05);
+        let white = Color::full(0.73);
+        let green = Color::new(0.12, 0.45, 0.15);
+
+        world.push(
+            ShapeBuilder::new()
+                .color_texture(green)
+                .lambertian()
+                .rect_yz(0.0, 555.0, 0.0, 555.0, 555.0)
+                .build(),
+        );
+        world.push(
+            ShapeBuilder::new()
+                .color_texture(red)
+                .lambertian()
+                .rect_yz(0.0, 555.0, 0.0, 555.0, 0.0)
+                .build(),
+        );
+        world.push(
+            ShapeBuilder::new()
+                .color_texture(Color::full(15.0))
+                .lambertian()
+                .rect_xz(213.0, 343.0, 227.0, 332.0, 554.0)
+                .build(),
+        );
+        world.push(
+            ShapeBuilder::new()
+                .color_texture(white)
+                .lambertian()
+                .rect_xz(0.0, 555.0, 0.0, 555.0, 555.0)
+                .build(),
+        );
+        world.push(
+            ShapeBuilder::new()
+                .color_texture(white)
+                .lambertian()
+                .rect_xz(0.0, 555.0, 0.0, 555.0, 0.0)
+                .build(),
+        );
+        world.push(
+            ShapeBuilder::new()
+                .color_texture(white)
+                .lambertian()
+                .rect_xy(0.0, 555.0, 0.0, 555.0, 555.0)
+                .build(),
+        );
+
+        Self { world }
+    }
+
+    fn background(&self, d: Vec3) -> Color {
+        // TODO どこかバグっていて、背景を黒にすると何も見えなくなる
+        let t = 0.5 * (d.normalize().y() + 1.0);
+        Color::one().lerp(Color::new(0.5, 0.7, 1.0), t)
+        // Color::full(0.0)
+    }
+}
+
+impl SceneWithDepth for CornelBoxScene {
+    fn camera(&self) -> Camera {
+        Camera::from_lookat(
+            Vec3::new(278.0, 278.0, -800.0),
+            Vec3::new(278.0, 278.0, 0.0),
+            Vec3::yaxis(),
+            40.0,
+            self.aspect(),
+        )
+    }
+
+    fn trace(&self, ray: Ray, depth: usize) -> Color {
+        let hit_info = self.world.hit(&ray, 0.001, f64::MAX);
+
+        if let Some(hit) = hit_info {
+            let emitted = hit.m.emitted(&ray, &hit);
+            let scatter_info = if depth > 0 {
+                hit.m.scatter(&ray, &hit)
+            } else {
+                None
+            };
+            if let Some(scatter) = scatter_info {
+                return emitted + scatter.albedo * self.trace(scatter.ray, depth - 1);
+            } else {
+                return emitted;
+            }
+        }
+        self.background(ray.direction)
+    }
+}
+
 fn main() {
-    render_aa_with_depth(SimpleScene::new());
+    render_aa_with_depth(CornelBoxScene::new());
+    // render_aa_with_depth(SimpleScene::new());
     // render_aa_with_depth(RandomScene::new());
 }

@@ -5,7 +5,7 @@ use image::{Rgb, RgbImage};
 use rayon::prelude::*;
 use std::{fs, path::Path};
 
-const IMAGE_WIDTH: u32 = 400;
+const IMAGE_WIDTH: u32 = 200;
 const IMAGE_HEIGHT: u32 = 200;
 
 const SAMPLES_PER_PIXEL: u32 = 8;
