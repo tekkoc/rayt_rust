@@ -703,9 +703,30 @@ impl SceneWithDepth for CornelBoxScene {
                 None
             };
             if let Some(scatter) = scatter_info {
-                let pdf_value = hit.m.scattering_pdf(&scatter.ray, &hit);
+                let [rx, rz, _] = Point3::random().to_array();
+                let on_light = Point3::new(
+                    213.0 + rx * (343.0 - 213.0),
+                    554.0,
+                    227.0 + rz * (332.0 - 227.0),
+                );
+                let to_light = on_light - hit.p;
+                let distance_squared = to_light.length_squared();
+                let to_light = to_light.normalize();
+                if to_light.dot(hit.n) < 0.0 {
+                    return emitted;
+                }
+                let light_area = (343.0 - 213.0) * (332.0 - 217.0);
+                let light_cosine = to_light.y().abs();
+                if light_cosine < 0.000001 {
+                    return emitted;
+                }
+
+                let spdf_value = distance_squared / (light_cosine * light_area);
+                let new_ray = Ray::new(hit.p, to_light);
+
+                let pdf_value = hit.m.scattering_pdf(&new_ray, &hit);
                 let albedo = scatter.albedo * pdf_value;
-                return emitted + albedo * self.trace(scatter.ray, depth - 1) / scatter.pdf_value;
+                return emitted + albedo * self.trace(new_ray, depth - 1) / spdf_value;
             } else {
                 return emitted;
             }
