@@ -210,6 +210,14 @@ impl Float3 {
             }
         }
     }
+
+    pub fn random_cosine_direction() -> Self {
+        let Self([r1, r2, _]) = Self::random();
+        let z = (1.0 - r2).sqrt();
+        let (x, y) = (PI2 * r1).sin_cos();
+        let r2sqrt = r2.sqrt();
+        Self::new(x * r2sqrt, y * r2sqrt, z)
+    }
 }
 
 impl FromIterator<f64> for Float3 {

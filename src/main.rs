@@ -6,6 +6,7 @@ mod rayt;
 use consts::*;
 use rayt::camera::*;
 use rayt::float3::*;
+use rayt::onb::*;
 use rayt::ray::*;
 use rayt::render::*;
 use std::sync::Arc;
@@ -128,15 +129,11 @@ impl Lambertian {
 
 impl Material for Lambertian {
     fn scatter(&self, _ray: &Ray, hit: &HitInfo) -> Option<ScatterInfo> {
-        let target = hit.p + hit.n + Vec3::random_in_unit_sphere();
-        let new_ray = Ray::new(hit.p, target - hit.p);
+        let direction = ONB::new(hit.n).local(Vec3::random_cosine_direction());
+        let new_ray = Ray::new(hit.p, direction.normalize());
         let albedo = self.albedo.value(hit.u, hit.v, hit.p);
         let pdf_value = new_ray.direction.dot(hit.n) * FRAC_1_PI;
-        Some(ScatterInfo::new(
-            Ray::new(hit.p, target - hit.p),
-            albedo,
-            pdf_value,
-        ))
+        Some(ScatterInfo::new(new_ray, albedo, pdf_value))
     }
     fn scattering_pdf(&self, ray: &Ray, hit: &HitInfo) -> f64 {
         ray.direction.normalize().dot(hit.n).max(0.0) * FRAC_1_PI
