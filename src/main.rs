@@ -3,6 +3,7 @@
 mod consts;
 mod rayt;
 
+use consts::*;
 use rayt::camera::*;
 use rayt::float3::*;
 use rayt::ray::*;
@@ -73,16 +74,24 @@ trait Material: Sync + Send {
     fn emitted(&self, _ray: &Ray, _hit: &HitInfo) -> Color {
         Color::zero()
     }
+    fn scattering_pdf(&self, _ray: &Ray, _hit: &HitInfo) -> f64 {
+        0.0
+    }
 }
 
 struct ScatterInfo {
-    ray: Ray,      // 散乱後の光の向き
-    albedo: Color, // 反射率(アルベド)
+    ray: Ray,       // 散乱後の光の向き
+    albedo: Color,  // 反射率(アルベド)
+    pdf_value: f64, // 確率の重み
 }
 
 impl ScatterInfo {
-    fn new(ray: Ray, albedo: Color) -> Self {
-        Self { ray, albedo }
+    fn new(ray: Ray, albedo: Color, pdf_value: f64) -> Self {
+        Self {
+            ray,
+            albedo,
+            pdf_value,
+        }
     }
 }
 
@@ -120,8 +129,17 @@ impl Lambertian {
 impl Material for Lambertian {
     fn scatter(&self, _ray: &Ray, hit: &HitInfo) -> Option<ScatterInfo> {
         let target = hit.p + hit.n + Vec3::random_in_unit_sphere();
+        let new_ray = Ray::new(hit.p, target - hit.p);
         let albedo = self.albedo.value(hit.u, hit.v, hit.p);
-        Some(ScatterInfo::new(Ray::new(hit.p, target - hit.p), albedo))
+        let pdf_value = new_ray.direction.dot(hit.n) * FRAC_1_PI;
+        Some(ScatterInfo::new(
+            Ray::new(hit.p, target - hit.p),
+            albedo,
+            pdf_value,
+        ))
+    }
+    fn scattering_pdf(&self, ray: &Ray, hit: &HitInfo) -> f64 {
+        ray.direction.normalize().dot(hit.n).max(0.0) * FRAC_1_PI
     }
 }
 
@@ -142,7 +160,7 @@ impl Material for Metal {
         reflected = reflected + self.fuzz * Vec3::random_in_unit_sphere();
         if reflected.dot(hit.n) > 0.0 {
             let albedo = self.albedo.value(hit.u, hit.v, hit.p);
-            Some(ScatterInfo::new(Ray::new(hit.p, reflected), albedo))
+            Some(ScatterInfo::new(Ray::new(hit.p, reflected), albedo, 0.0))
         } else {
             None
         }
@@ -178,10 +196,18 @@ impl Material for Dielectric {
 
         if let Some(refracted) = (-ray.direction).refract(outward_normal, ni_over_nt) {
             if Vec3::random_full().x() > Self::schlick(cosine, self.ri) {
-                return Some(ScatterInfo::new(Ray::new(hit.p, refracted), Color::one()));
+                return Some(ScatterInfo::new(
+                    Ray::new(hit.p, refracted),
+                    Color::one(),
+                    0.0,
+                ));
             }
         }
-        Some(ScatterInfo::new(Ray::new(hit.p, reflected), Color::one()))
+        Some(ScatterInfo::new(
+            Ray::new(hit.p, reflected),
+            Color::one(),
+            0.0,
+        ))
     }
 }
 
@@ -680,7 +706,9 @@ impl SceneWithDepth for CornelBoxScene {
                 None
             };
             if let Some(scatter) = scatter_info {
-                return emitted + scatter.albedo * self.trace(scatter.ray, depth - 1);
+                let pdf_value = hit.m.scattering_pdf(&scatter.ray, &hit);
+                let albedo = scatter.albedo * pdf_value;
+                return emitted + albedo * self.trace(scatter.ray, depth - 1) / scatter.pdf_value;
             } else {
                 return emitted;
             }
