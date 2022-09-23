@@ -107,6 +107,52 @@ impl Pdf for CosinePdf {
     }
 }
 
+struct ShapePdf {
+    shape: Box<dyn Shape>,
+    origin: Point3,
+}
+impl ShapePdf {
+    fn new(shape: Box<dyn Shape>, origin: Point3) -> Self {
+        Self { shape, origin }
+    }
+}
+impl Pdf for ShapePdf {
+    fn value(&self, _hit: &HitInfo, direction: Vec3) -> f64 {
+        self.shape.pdf_value(self.origin, direction)
+    }
+
+    fn generate(&self, _hit: &HitInfo) -> Vec3 {
+        self.shape.random(self.origin)
+    }
+}
+
+struct MixturePdf {
+    pdfs: [Box<dyn Pdf>; 2],
+}
+
+impl MixturePdf {
+    fn new(pdf0: Box<dyn Pdf>, pdf1: Box<dyn Pdf>) -> Self {
+        Self { pdfs: [pdf0, pdf1] }
+    }
+}
+
+impl Pdf for MixturePdf {
+    fn value(&self, hit: &HitInfo, direction: Vec3) -> f64 {
+        let pdf0 = self.pdfs[0].value(&hit, direction);
+        let pdf1 = self.pdfs[1].value(&hit, direction);
+
+        0.5 * pdf0 + 0.5 * pdf1
+    }
+
+    fn generate(&self, hit: &HitInfo) -> Vec3 {
+        if Vec3::random_full().x() < 0.5 {
+            self.pdfs[0].generate(hit)
+        } else {
+            self.pdfs[1].generate(hit)
+        }
+    }
+}
+
 struct ScatterInfo {
     ray: Ray,       // 散乱後の光の向き
     albedo: Color,  // 反射率(アルベド)
@@ -246,6 +292,14 @@ trait Shape: Sync {
         t0: f64, //t0 ~ t1 は衝突範囲
         t1: f64,
     ) -> Option<HitInfo>;
+
+    fn pdf_value(&self, _o: Vec3, _v: Vec3) -> f64 {
+        0.0
+    }
+
+    fn random(&self, _o: Vec3) -> Vec3 {
+        Vec3::xaxis()
+    }
 }
 
 struct Sphere {
@@ -378,6 +432,28 @@ impl Shape for Rect {
             (x - self.x0) / (self.x1 - self.x0),
             (y - self.y0) / (self.y1 - self.y0),
         ))
+    }
+
+    fn pdf_value(&self, o: Vec3, v: Vec3) -> f64 {
+        if let Some(hit) = self.hit(&Ray::new(o, v), 0.001, f64::MAX) {
+            let area = (self.x1 - self.x0) * (self.y1 - self.y0);
+            let distance_squared = hit.t.powi(2) * v.length_squared();
+            let cosine = v.dot(hit.n).abs() / v.length();
+            distance_squared / (cosine * area)
+        } else {
+            0.0
+        }
+    }
+
+    fn random(&self, o: Vec3) -> Vec3 {
+        let [rx, ry, _] = Vec3::random().to_array();
+        let x = self.x0 + rx * (self.x1 - self.x0);
+        let y = self.y0 + ry * (self.y1 - self.y0);
+        match self.axis {
+            RectAxisType::XY => Point3::new(x, y, self.k) - o,
+            RectAxisType::XZ => Point3::new(x, self.k, y) - o,
+            RectAxisType::YZ => Point3::new(self.k, x, y) - o,
+        }
     }
 }
 
@@ -731,7 +807,18 @@ impl SceneWithDepth for CornelBoxScene {
                 None
             };
             if let Some(scatter) = scatter_info {
-                let pdf = CosinePdf::new();
+                let pdf = MixturePdf::new(
+                    Box::new(ShapePdf::new(
+                        ShapeBuilder::new()
+                            .color_texture(Color::zero())
+                            .lambertian()
+                            .rect_xz(213.0, 343.0, 227.0, 332.0, 554.0)
+                            .build(),
+                        hit.p,
+                    )),
+                    Box::new(CosinePdf::new()),
+                );
+
                 let new_ray = Ray::new(hit.p, pdf.generate(&hit));
 
                 let spdf_value = pdf.value(&hit, new_ray.direction);
