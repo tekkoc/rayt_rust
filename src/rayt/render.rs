@@ -10,6 +10,9 @@ const IMAGE_HEIGHT: u32 = 200;
 
 const SAMPLES_PER_PIXEL: u32 = 8;
 
+const GAMMA_FACTOR: f64 = 2.2;
+const MAX_RAY_BOUNCE_DEPTH: usize = 50;
+
 const OUTPUT_FILENAME: &str = "render.png";
 const BUCKUP_FILENAME: &str = "render_bak.png";
 
@@ -38,8 +41,6 @@ pub trait SceneWithDepth {
     }
 }
 
-const GAMMA_FACTOR: f64 = 2.2;
-const MAX_RAY_BOUNCE_DEPTH: usize = 50;
 pub fn render_aa_with_depth(scene: impl SceneWithDepth + Sync) {
     // scene は複数スレッドから参照されるため、Syncマーカートレイトが必要
 
