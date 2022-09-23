@@ -80,6 +80,33 @@ trait Material: Sync + Send {
     }
 }
 
+trait Pdf {
+    fn value(&self, hit: &HitInfo, direction: Vec3) -> f64;
+    fn generate(&self, hit: &HitInfo) -> Vec3;
+}
+
+struct CosinePdf {}
+impl CosinePdf {
+    const fn new() -> Self {
+        Self {}
+    }
+}
+
+impl Pdf for CosinePdf {
+    fn value(&self, hit: &HitInfo, direction: Vec3) -> f64 {
+        let cosine = direction.normalize().dot(hit.n);
+        if cosine > 0.0 {
+            cosine * FRAC_1_PI
+        } else {
+            0.0
+        }
+    }
+
+    fn generate(&self, hit: &HitInfo) -> Vec3 {
+        ONB::new(hit.n).local(Vec3::random_cosine_direction())
+    }
+}
+
 struct ScatterInfo {
     ray: Ray,       // 散乱後の光の向き
     albedo: Color,  // 反射率(アルベド)
@@ -677,12 +704,8 @@ impl CornelBoxScene {
         Self { world }
     }
 
-    fn background(&self, d: Vec3) -> Color {
-        // TODO どこかバグっていて、背景を黒にすると何も見えなくなる
-        let t = 0.5 * (d.normalize().y() + 1.0);
-        Color::one().lerp(Color::new(0.5, 0.7, 1.0), t)
-        // Color::full(0.1)
-        // Color::full(0.0)
+    fn background(&self, _d: Vec3) -> Color {
+        Color::full(0.0)
     }
 }
 
@@ -708,30 +731,17 @@ impl SceneWithDepth for CornelBoxScene {
                 None
             };
             if let Some(scatter) = scatter_info {
-                let [rx, rz, _] = Point3::random().to_array();
-                let on_light = Point3::new(
-                    213.0 + rx * (343.0 - 213.0),
-                    554.0,
-                    227.0 + rz * (332.0 - 227.0),
-                );
-                let to_light = on_light - hit.p;
-                let distance_squared = to_light.length_squared();
-                let to_light = to_light.normalize();
-                if to_light.dot(hit.n) < 0.0 {
+                let pdf = CosinePdf::new();
+                let new_ray = Ray::new(hit.p, pdf.generate(&hit));
+
+                let spdf_value = pdf.value(&hit, new_ray.direction);
+                if spdf_value > 0.0 {
+                    let pdf_value = hit.m.scattering_pdf(&new_ray, &hit);
+                    let albedo = scatter.albedo * pdf_value;
+                    return emitted + albedo * self.trace(new_ray, depth - 1) / spdf_value;
+                } else {
                     return emitted;
                 }
-                let light_area = (343.0 - 213.0) * (332.0 - 217.0);
-                let light_cosine = to_light.y().abs();
-                if light_cosine < 0.000001 {
-                    return emitted;
-                }
-
-                let spdf_value = distance_squared / (light_cosine * light_area);
-                let new_ray = Ray::new(hit.p, to_light);
-
-                let pdf_value = hit.m.scattering_pdf(&new_ray, &hit);
-                let albedo = scatter.albedo * pdf_value;
-                return emitted + albedo * self.trace(new_ray, depth - 1) / spdf_value;
             } else {
                 return emitted;
             }
