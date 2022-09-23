@@ -620,7 +620,7 @@ impl CornelBoxScene {
         world.push(
             ShapeBuilder::new()
                 .color_texture(Color::full(15.0))
-                .lambertian()
+                .diffuse_light()
                 .rect_xz(213.0, 343.0, 227.0, 332.0, 554.0)
                 .build(),
         );
