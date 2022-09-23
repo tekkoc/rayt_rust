@@ -80,7 +80,7 @@ trait Material: Sync + Send {
     }
 }
 
-trait Pdf {
+trait Pdf: Send + Sync {
     fn value(&self, hit: &HitInfo, direction: Vec3) -> f64;
     fn generate(&self, hit: &HitInfo) -> Vec3;
 }
@@ -127,11 +127,11 @@ impl Pdf for ShapePdf {
 }
 
 struct MixturePdf {
-    pdfs: [Box<dyn Pdf>; 2],
+    pdfs: [Arc<dyn Pdf>; 2],
 }
 
 impl MixturePdf {
-    fn new(pdf0: Box<dyn Pdf>, pdf1: Box<dyn Pdf>) -> Self {
+    fn new(pdf0: Arc<dyn Pdf>, pdf1: Arc<dyn Pdf>) -> Self {
         Self { pdfs: [pdf0, pdf1] }
     }
 }
@@ -154,18 +154,14 @@ impl Pdf for MixturePdf {
 }
 
 struct ScatterInfo {
-    ray: Ray,       // 散乱後の光の向き
-    albedo: Color,  // 反射率(アルベド)
-    pdf_value: f64, // 確率の重み
+    ray: Ray,      // 散乱後の光の向き
+    albedo: Color, // 反射率(アルベド)
+    pdf: Option<Arc<dyn Pdf>>,
 }
 
 impl ScatterInfo {
-    fn new(ray: Ray, albedo: Color, pdf_value: f64) -> Self {
-        Self {
-            ray,
-            albedo,
-            pdf_value,
-        }
+    fn new(ray: Ray, albedo: Color, pdf: Option<Arc<dyn Pdf>>) -> Self {
+        Self { ray, albedo, pdf }
     }
 }
 
@@ -196,11 +192,15 @@ impl Material for DiffuseLight {
 // 拡散反射するような材質
 struct Lambertian {
     albedo: Box<dyn Texture>,
+    pdf: Arc<dyn Pdf>,
 }
 
 impl Lambertian {
     fn new(albedo: Box<dyn Texture>) -> Self {
-        Self { albedo }
+        Self {
+            albedo,
+            pdf: Arc::new(CosinePdf::new()),
+        }
     }
 }
 
@@ -209,8 +209,11 @@ impl Material for Lambertian {
         let direction = ONB::new(hit.n).local(Vec3::random_cosine_direction());
         let new_ray = Ray::new(hit.p, direction.normalize());
         let albedo = self.albedo.value(hit.u, hit.v, hit.p);
-        let pdf_value = new_ray.direction.dot(hit.n) * FRAC_1_PI;
-        Some(ScatterInfo::new(new_ray, albedo, pdf_value))
+        Some(ScatterInfo::new(
+            new_ray,
+            albedo,
+            Some(Arc::clone(&self.pdf)),
+        ))
     }
     fn scattering_pdf(&self, ray: &Ray, hit: &HitInfo) -> f64 {
         ray.direction.normalize().dot(hit.n).max(0.0) * FRAC_1_PI
@@ -234,7 +237,7 @@ impl Material for Metal {
         reflected = reflected + self.fuzz * Vec3::random_in_unit_sphere();
         if reflected.dot(hit.n) > 0.0 {
             let albedo = self.albedo.value(hit.u, hit.v, hit.p);
-            Some(ScatterInfo::new(Ray::new(hit.p, reflected), albedo, 0.0))
+            Some(ScatterInfo::new(Ray::new(hit.p, reflected), albedo, None))
         } else {
             None
         }
@@ -273,19 +276,19 @@ impl Material for Dielectric {
                 return Some(ScatterInfo::new(
                     Ray::new(hit.p, refracted),
                     Color::one(),
-                    0.0,
+                    None,
                 ));
             }
         }
         Some(ScatterInfo::new(
             Ray::new(hit.p, reflected),
             Color::one(),
-            0.0,
+            None,
         ))
     }
 }
 
-trait Shape: Sync {
+trait Shape: Send + Sync {
     fn hit(
         &self,
         ray: &Ray,
@@ -807,25 +810,29 @@ impl SceneWithDepth for CornelBoxScene {
                 None
             };
             if let Some(scatter) = scatter_info {
-                let pdf = MixturePdf::new(
-                    Box::new(ShapePdf::new(
-                        ShapeBuilder::new()
-                            .color_texture(Color::zero())
-                            .lambertian()
-                            .rect_xz(213.0, 343.0, 227.0, 332.0, 554.0)
-                            .build(),
-                        hit.p,
-                    )),
-                    Box::new(CosinePdf::new()),
-                );
+                if let Some(pdf) = scatter.pdf {
+                    let pdf = MixturePdf::new(
+                        Arc::new(ShapePdf::new(
+                            ShapeBuilder::new()
+                                .color_texture(Color::zero())
+                                .lambertian()
+                                .rect_xz(213.0, 343.0, 227.0, 332.0, 554.0)
+                                .build(),
+                            hit.p,
+                        )),
+                        Arc::clone(&pdf),
+                    );
 
-                let new_ray = Ray::new(hit.p, pdf.generate(&hit));
+                    let new_ray = Ray::new(hit.p, pdf.generate(&hit));
 
-                let spdf_value = pdf.value(&hit, new_ray.direction);
-                if spdf_value > 0.0 {
-                    let pdf_value = hit.m.scattering_pdf(&new_ray, &hit);
-                    let albedo = scatter.albedo * pdf_value;
-                    return emitted + albedo * self.trace(new_ray, depth - 1) / spdf_value;
+                    let spdf_value = pdf.value(&hit, new_ray.direction);
+                    if spdf_value > 0.0 {
+                        let pdf_value = hit.m.scattering_pdf(&new_ray, &hit);
+                        let albedo = scatter.albedo * pdf_value;
+                        return emitted + albedo * self.trace(new_ray, depth - 1) / spdf_value;
+                    } else {
+                        return emitted;
+                    }
                 } else {
                     return emitted;
                 }
