@@ -111,8 +111,12 @@ impl Material for DiffuseLight {
         None
     }
 
-    fn emitted(&self, _ray: &Ray, hit: &HitInfo) -> Color {
-        self.emit.value(hit.u, hit.v, hit.p)
+    fn emitted(&self, ray: &Ray, hit: &HitInfo) -> Color {
+        if ray.direction.dot(hit.n) < 0.0 {
+            self.emit.value(hit.u, hit.v, hit.p)
+        } else {
+            Color::zero()
+        }
     }
 }
 
@@ -622,6 +626,7 @@ impl CornelBoxScene {
                 .color_texture(Color::full(15.0))
                 .diffuse_light()
                 .rect_xz(213.0, 343.0, 227.0, 332.0, 554.0)
+                .flip_face()
                 .build(),
         );
         world.push(
