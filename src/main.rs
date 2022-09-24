@@ -7,6 +7,7 @@ use consts::*;
 use rayt::camera::*;
 use rayt::float3::*;
 use rayt::onb::*;
+use rayt::quat::*;
 use rayt::ray::*;
 use rayt::render::*;
 use std::sync::Arc;
@@ -27,6 +28,60 @@ struct HitInfo {
 impl HitInfo {
     const fn new(t: f64, p: Point3, n: Vec3, m: Arc<dyn Material>, u: f64, v: f64) -> Self {
         Self { t, p, n, m, u, v }
+    }
+}
+
+struct Translate {
+    shape: Box<dyn Shape>,
+    offset: Point3,
+}
+
+impl Translate {
+    fn new(shape: Box<dyn Shape>, offset: Point3) -> Self {
+        Self { shape, offset }
+    }
+}
+
+impl Shape for Translate {
+    fn hit(&self, ray: &Ray, t0: f64, t1: f64) -> Option<HitInfo> {
+        let moved_ray = Ray::new(ray.origin - self.offset, ray.direction);
+        if let Some(hit) = self.shape.hit(&moved_ray, t0, t1) {
+            Some(HitInfo {
+                p: hit.p + self.offset,
+                ..hit
+            })
+        } else {
+            None
+        }
+    }
+}
+struct Rotate {
+    shape: Box<dyn Shape>,
+    quat: Quat,
+}
+
+impl Rotate {
+    fn new(shape: Box<dyn Shape>, axis: Vec3, angle: f64) -> Self {
+        Self {
+            shape,
+            quat: Quat::from_rot(axis, angle.to_radians()),
+        }
+    }
+}
+
+impl Shape for Rotate {
+    fn hit(&self, ray: &Ray, t0: f64, t1: f64) -> Option<HitInfo> {
+        let revq = self.quat.conj();
+        let rotated_ray = Ray::new(revq.rotate(ray.origin), revq.rotate(ray.direction));
+        if let Some(hit) = self.shape.hit(&rotated_ray, t0, t1) {
+            Some(HitInfo {
+                p: self.quat.rotate(hit.p),
+                n: self.quat.rotate(hit.n),
+                ..hit
+            })
+        } else {
+            None
+        }
     }
 }
 
@@ -695,6 +750,16 @@ impl ShapeBuilder {
         self
     }
 
+    fn translate(mut self, offset: Point3) -> Self {
+        self.shape = Some(Box::new(Translate::new(self.shape.unwrap(), offset)));
+        self
+    }
+
+    fn rotate(mut self, axis: Vec3, angle: f64) -> Self {
+        self.shape = Some(Box::new(Rotate::new(self.shape.unwrap(), axis, angle)));
+        self
+    }
+
     fn build(self) -> Box<dyn Shape> {
         self.shape.unwrap()
     }
@@ -712,6 +777,7 @@ impl CornelBoxScene {
         let white = Color::full(0.73);
         let green = Color::new(0.12, 0.45, 0.15);
 
+        // 壁・床
         world.push(
             ShapeBuilder::new()
                 .color_texture(green)
@@ -725,14 +791,6 @@ impl CornelBoxScene {
                 .color_texture(red)
                 .lambertian()
                 .rect_yz(0.0, 555.0, 0.0, 555.0, 0.0)
-                .build(),
-        );
-        world.push(
-            ShapeBuilder::new()
-                .color_texture(Color::full(15.0))
-                .diffuse_light()
-                .rect_xz(213.0, 343.0, 227.0, 332.0, 554.0)
-                .flip_face()
                 .build(),
         );
         world.push(
@@ -759,24 +817,32 @@ impl CornelBoxScene {
                 .build(),
         );
 
+        // 照明
+        world.push(
+            ShapeBuilder::new()
+                .color_texture(Color::full(15.0))
+                .diffuse_light()
+                .rect_xz(213.0, 343.0, 227.0, 332.0, 554.0)
+                .flip_face()
+                .build(),
+        );
+
         world.push(
             ShapeBuilder::new()
                 .color_texture(white)
                 .lambertian()
-                .box3d(
-                    Point3::new(130.0, 0.0, 65.0),
-                    Point3::new(295.0, 165.0, 230.0),
-                )
+                .box3d(Point3::zero(), Point3::full(165.0))
+                .rotate(Vec3::yaxis(), -18.0)
+                .translate(Point3::new(130.0, 0.0, 65.0))
                 .build(),
         );
         world.push(
             ShapeBuilder::new()
                 .color_texture(white)
-                .lambertian()
-                .box3d(
-                    Point3::new(265.0, 0.0, 295.0),
-                    Point3::new(430.0, 330.0, 460.0),
-                )
+                .metal(0.0)
+                .box3d(Point3::zero(), Point3::new(165.0, 330.0, 165.0))
+                .rotate(Vec3::yaxis(), 15.0)
+                .translate(Point3::new(265.0, 0.0, 295.0))
                 .build(),
         );
 
@@ -829,18 +895,19 @@ impl SceneWithDepth for CornelBoxScene {
                     if spdf_value > 0.0 {
                         let pdf_value = hit.m.scattering_pdf(&new_ray, &hit);
                         let albedo = scatter.albedo * pdf_value;
-                        return emitted + albedo * self.trace(new_ray, depth - 1) / spdf_value;
+                        emitted + albedo * self.trace(new_ray, depth - 1) / spdf_value
                     } else {
-                        return emitted;
+                        emitted
                     }
                 } else {
-                    return emitted;
+                    emitted + scatter.albedo * self.trace(scatter.ray, depth - 1)
                 }
             } else {
-                return emitted;
+                emitted
             }
+        } else {
+            self.background(ray.direction)
         }
-        self.background(ray.direction)
     }
 }
 
