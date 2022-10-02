@@ -78,8 +78,8 @@ impl Quat {
 
         Vec3::new(
             ((w * x1 + x * w1) - y * z1) + z * y1,
-            ((w * y1 + y * w1) - y * z1) + x * z1,
-            ((w * z1 + z * w1) - y * z1) + y * x1,
+            ((w * y1 + y * w1) - z * x1) + x * z1,
+            ((w * z1 + z * w1) - x * y1) + y * x1,
         )
     }
 }
@@ -89,7 +89,6 @@ impl std::ops::Mul<Quat> for Quat {
     fn mul(self, rhs: Quat) -> Self {
         let [x1, y1, z1, w1] = self.to_array();
         let [x2, y2, z2, w2] = rhs.to_array();
-        // TODO あってる?
         Quat::new(
             w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2,
             w1 * y2 + y2 * w2 + z1 * x2 - x1 * z2,
