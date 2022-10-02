@@ -260,15 +260,9 @@ impl Lambertian {
 }
 
 impl Material for Lambertian {
-    fn scatter(&self, _ray: &Ray, hit: &HitInfo) -> Option<ScatterInfo> {
-        let direction = ONB::new(hit.n).local(Vec3::random_cosine_direction());
-        let new_ray = Ray::new(hit.p, direction.normalize());
+    fn scatter(&self, ray: &Ray, hit: &HitInfo) -> Option<ScatterInfo> {
         let albedo = self.albedo.value(hit.u, hit.v, hit.p);
-        Some(ScatterInfo::new(
-            new_ray,
-            albedo,
-            Some(Arc::clone(&self.pdf)),
-        ))
+        Some(ScatterInfo::new(*ray, albedo, Some(Arc::clone(&self.pdf))))
     }
     fn scattering_pdf(&self, ray: &Ray, hit: &HitInfo) -> f64 {
         ray.direction.normalize().dot(hit.n).max(0.0) * FRAC_1_PI
