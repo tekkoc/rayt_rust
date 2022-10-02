@@ -48,7 +48,7 @@ pub fn render_aa_with_depth(scene: impl SceneWithDepth + Sync) {
 
     let camera = scene.camera();
 
-    let mut img = RgbImage::new(IMAGE_WIDTH, IMAGE_HEIGHT);
+    let mut img = RgbImage::new(scene.width(), scene.height());
     img.enumerate_pixels_mut()
         .collect::<Vec<(u32, u32, &mut Rgb<u8>)>>()
         .par_iter_mut()
