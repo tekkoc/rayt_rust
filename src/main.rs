@@ -866,16 +866,36 @@ impl CornelBoxScene {
                 .build(),
         );
 
-        world.push(
-            ShapeBuilder::new()
-                .dielectric(1.5)
-                .sphere(Point3::new(190.0, 90.0, 190.0), 90.0)
-                .build(),
-        );
+        // TODO
+        // world.push(
+        //     ShapeBuilder::new()
+        //         .dielectric(1.5)
+        //         .sphere(Point3::new(190.0, 90.0, 190.0), 90.0)
+        //         .build(),
+        // );
+        // world.push(
+        //     ShapeBuilder::new()
+        //         .color_texture(white)
+        //         .lambertian()
+        //         .box3d(Point3::zero(), Point3::new(165.0, 330.0, 165.0))
+        //         .rotate(Vec3::yaxis(), 15.0)
+        //         .translate(Point3::new(265.0, 0.0, 295.0))
+        //         .build(),
+        // );
+
         world.push(
             ShapeBuilder::new()
                 .color_texture(white)
                 .lambertian()
+                .box3d(Point3::zero(), Point3::full(165.0))
+                .rotate(Vec3::yaxis(), -18.0)
+                .translate(Point3::new(130.0, 0.0, 65.0))
+                .build(),
+        );
+        world.push(
+            ShapeBuilder::new()
+                .color_texture(Color::new(0.8, 0.85, 0.88))
+                .metal(0.0)
                 .box3d(Point3::zero(), Point3::new(165.0, 330.0, 165.0))
                 .rotate(Vec3::yaxis(), 15.0)
                 .translate(Point3::new(265.0, 0.0, 295.0))
@@ -883,18 +903,25 @@ impl CornelBoxScene {
         );
 
         let mut light = ShapeList::new();
+        // light.push(
+        //     ShapeBuilder::new()
+        //         .color_texture(Color::zero())
+        //         .lambertian()
+        //         .rect_xz(213.0, 343.0, 227.0, 332.0, 554.0)
+        //         .build(),
+        // );
+        // light.push(
+        //     ShapeBuilder::new()
+        //         .color_texture(Color::zero())
+        //         .lambertian()
+        //         .sphere(Point3::new(190.0, 90.0, 190.0), 90.0)
+        //         .build(),
+        // );
         light.push(
             ShapeBuilder::new()
                 .color_texture(Color::zero())
                 .lambertian()
                 .rect_xz(213.0, 343.0, 227.0, 332.0, 554.0)
-                .build(),
-        );
-        light.push(
-            ShapeBuilder::new()
-                .color_texture(Color::zero())
-                .lambertian()
-                .sphere(Point3::new(190.0, 90.0, 190.0), 90.0)
                 .build(),
         );
 
