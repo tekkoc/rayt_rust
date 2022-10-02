@@ -8,7 +8,7 @@ use std::{fs, path::Path};
 const IMAGE_WIDTH: u32 = 200;
 const IMAGE_HEIGHT: u32 = 200;
 
-const SAMPLES_PER_PIXEL: u32 = 8;
+const SAMPLES_PER_PIXEL: usize = 8;
 
 const GAMMA_FACTOR: f64 = 2.2;
 const MAX_RAY_BOUNCE_DEPTH: usize = 50;
@@ -33,7 +33,7 @@ pub trait SceneWithDepth {
     fn height(&self) -> u32 {
         IMAGE_HEIGHT
     }
-    fn spp(&self) -> u32 {
+    fn spp(&self) -> usize {
         SAMPLES_PER_PIXEL
     }
     fn aspect(&self) -> f64 {

@@ -945,6 +945,10 @@ impl SceneWithDepth for CornelBoxScene {
             self.background(ray.direction)
         }
     }
+
+    // fn spp(&self) -> usize {
+    //     1000
+    // }
 }
 
 fn main() {
