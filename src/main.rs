@@ -368,6 +368,12 @@ impl Sphere {
             material,
         }
     }
+
+    fn uv(p: Point3) -> (f64, f64) {
+        let phi = p.z().atan2(p.x());
+        let theta = p.y().asin();
+        (1.0 - (phi + PI) / PI2, (theta + PI / 2.0) * FRAC_1_PI)
+    }
 }
 
 impl Shape for Sphere {
@@ -382,26 +388,16 @@ impl Shape for Sphere {
             let temp = (-b - root) / (2.0 * a);
             if t0 < temp && temp < t1 {
                 let p = ray.at(temp);
-                return Some(HitInfo::new(
-                    temp,
-                    p,
-                    (p - self.center) / self.radius,
-                    Arc::clone(&self.material),
-                    0.0,
-                    0.0,
-                ));
+                let n = (p - self.center) / self.radius;
+                let (u, v) = Self::uv(n);
+                return Some(HitInfo::new(temp, p, n, Arc::clone(&self.material), u, v));
             }
             let temp = (-b + root) / (2.0 * a);
             if t0 < temp && temp < t1 {
                 let p = ray.at(temp);
-                return Some(HitInfo::new(
-                    temp,
-                    p,
-                    (p - self.center) / self.radius,
-                    Arc::clone(&self.material),
-                    0.0,
-                    0.0,
-                ));
+                let n = (p - self.center) / self.radius;
+                let (u, v) = Self::uv(n);
+                return Some(HitInfo::new(temp, p, n, Arc::clone(&self.material), u, v));
             }
         }
         None
