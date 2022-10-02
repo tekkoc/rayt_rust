@@ -163,11 +163,11 @@ impl Pdf for CosinePdf {
 }
 
 struct ShapePdf {
-    shape: Box<dyn Shape>,
+    shape: Arc<dyn Shape>,
     origin: Point3,
 }
 impl ShapePdf {
-    fn new(shape: Box<dyn Shape>, origin: Point3) -> Self {
+    fn new(shape: Arc<dyn Shape>, origin: Point3) -> Self {
         Self { shape, origin }
     }
 }
@@ -412,6 +412,24 @@ impl Shape for Sphere {
         }
         None
     }
+
+    fn pdf_value(&self, o: Vec3, v: Vec3) -> f64 {
+        if let Some(_) = self.hit(&Ray::new(o, v), 0.001, f64::MAX) {
+            let dd = (self.center - o).length_squared();
+            let rr = self.radius.powi(2).min(dd);
+            let cos_theta_max = (1.0 - rr * dd.recip()).sqrt();
+            let solid_angle = PI2 * (1.0 - cos_theta_max);
+            solid_angle.recip()
+        } else {
+            0.0
+        }
+    }
+
+    fn random(&self, o: Vec3) -> Vec3 {
+        let direction = self.center - o;
+        let distance_squared = direction.length_squared();
+        ONB::new(direction).local(Vec3::random_to_sphere(self.radius, distance_squared))
+    }
 }
 
 enum RectAxisType {
@@ -624,6 +642,26 @@ impl Shape for ShapeList {
 
         hit_info
     }
+
+    fn pdf_value(&self, o: Vec3, v: Vec3) -> f64 {
+        if self.objects.is_empty() {
+            panic!();
+        }
+
+        let weight = 1.0 / self.objects.len() as f64;
+        self.objects
+            .iter()
+            .fold(0.0, |acc, s| acc + weight * s.pdf_value(o, v))
+    }
+
+    fn random(&self, o: Vec3) -> Vec3 {
+        if self.objects.is_empty() {
+            panic!();
+        }
+
+        let index = (Vec3::random_full().x() * self.objects.len() as f64).floor() as usize;
+        self.objects[index].random(o)
+    }
 }
 
 struct ShapeBuilder {
@@ -767,6 +805,7 @@ impl ShapeBuilder {
 
 struct CornelBoxScene {
     world: ShapeList,
+    light: Arc<dyn Shape>,
 }
 
 impl CornelBoxScene {
@@ -829,24 +868,40 @@ impl CornelBoxScene {
 
         world.push(
             ShapeBuilder::new()
-                .color_texture(white)
-                .lambertian()
-                .box3d(Point3::zero(), Point3::full(165.0))
-                .rotate(Vec3::yaxis(), -18.0)
-                .translate(Point3::new(130.0, 0.0, 65.0))
+                .dielectric(1.5)
+                .sphere(Point3::new(190.0, 90.0, 190.0), 90.0)
                 .build(),
         );
         world.push(
             ShapeBuilder::new()
                 .color_texture(white)
-                .metal(0.0)
+                .lambertian()
                 .box3d(Point3::zero(), Point3::new(165.0, 330.0, 165.0))
                 .rotate(Vec3::yaxis(), 15.0)
                 .translate(Point3::new(265.0, 0.0, 295.0))
                 .build(),
         );
 
-        Self { world }
+        let mut light = ShapeList::new();
+        light.push(
+            ShapeBuilder::new()
+                .color_texture(Color::zero())
+                .lambertian()
+                .rect_xz(213.0, 343.0, 227.0, 332.0, 554.0)
+                .build(),
+        );
+        light.push(
+            ShapeBuilder::new()
+                .color_texture(Color::zero())
+                .lambertian()
+                .sphere(Point3::new(190.0, 90.0, 190.0), 90.0)
+                .build(),
+        );
+
+        Self {
+            world,
+            light: Arc::new(light),
+        }
     }
 
     fn background(&self, _d: Vec3) -> Color {
@@ -877,17 +932,8 @@ impl SceneWithDepth for CornelBoxScene {
             };
             if let Some(scatter) = scatter_info {
                 if let Some(pdf) = scatter.pdf {
-                    let pdf = MixturePdf::new(
-                        Arc::new(ShapePdf::new(
-                            ShapeBuilder::new()
-                                .color_texture(Color::zero())
-                                .lambertian()
-                                .rect_xz(213.0, 343.0, 227.0, 332.0, 554.0)
-                                .build(),
-                            hit.p,
-                        )),
-                        Arc::clone(&pdf),
-                    );
+                    let shape_pdf = Arc::new(ShapePdf::new(Arc::clone(&self.light), hit.p));
+                    let pdf = MixturePdf::new(shape_pdf, Arc::clone(&pdf));
 
                     let new_ray = Ray::new(hit.p, pdf.generate(&hit));
 
